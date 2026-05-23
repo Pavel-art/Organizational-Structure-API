@@ -3,12 +3,12 @@ package models
 import "time"
 
 type Department struct {
-	ID        int    `gorm:"primaryKey"`
-	Name      string `gorm:"type:varchar(200);not null;uniqueIndex:idx_department_parent_name"`
-	ParentID  *int   `gorm:"uniqueIndex:idx_department_parent_name"`
-	CreatedAt time.Time
+	ID        int       `gorm:"primaryKey" json:"id"`
+	Name      string    `gorm:"type:varchar(200);not null" json:"name"`
+	ParentID  *int      `gorm:"index" json:"parent_id"`
+	CreatedAt time.Time `json:"created_at"`
 
-	Parent    *Department  `gorm:"foreignKey:ParentID"`
-	Children  []Department `gorm:"foreignKey:ParentID"`
-	Employees []Employee   `gorm:"foreignKey:DepartmentID"`
+	Parent    *Department  `gorm:"foreignKey:ParentID" json:"-"`
+	Children  []Department `gorm:"foreignKey:ParentID" json:"children,omitempty"`
+	Employees []Employee   `gorm:"foreignKey:DepartmentID" json:"employees,omitempty"`
 }
