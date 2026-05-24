@@ -1,0 +1,470 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Organizational Structure API",
+    "version": "1.0.0",
+    "description": "Departments tree + employees management API."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/departments/": {
+      "post": {
+        "summary": "Create department",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDepartmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Department"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/departments/{id}": {
+      "get": {
+        "summary": "Get department with subtree",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "description": "Depth of nested departments to include in `children`. 1 = only direct children. Max 5.",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          {
+            "name": "include_employees",
+            "in": "query",
+            "required": false,
+            "description": "If true, `employees` is included for each returned department node; if false, `employees` field is omitted.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentNodeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update department (rename/move)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDepartmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Department"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete department",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "Delete mode. `cascade` removes department subtree. `reassign` moves employees to `reassign_to_department_id` then deletes subtree.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cascade",
+                "reassign"
+              ],
+              "default": "cascade"
+            }
+          },
+          {
+            "name": "reassign_to_department_id",
+            "in": "query",
+            "required": false,
+            "description": "Required when `mode=reassign`. Target department id to move employees to.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/departments/{id}/employees/": {
+      "post": {
+        "summary": "Create employee in department",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEmployeeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "BadRequest": {
+        "description": "Bad Request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Not Found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Conflict",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "CreateDepartmentRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "parent_id": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "description": "Optional. Parent department id. Omit/null to create a root department."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateDepartmentRequest": {
+        "type": "object",
+        "description": "All fields are optional. Omit/null means 'do not change'.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "nullable": true,
+            "description": "Optional new department name."
+          },
+          "parent_id": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "description": "Optional new parent id."
+          }
+        }
+      },
+      "CreateEmployeeRequest": {
+        "type": "object",
+        "properties": {
+          "full_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "position": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "hired_at": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Optional. Hiring date in YYYY-MM-DD."
+          }
+        },
+        "required": [
+          "full_name",
+          "position"
+        ]
+      },
+      "Department": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "description": "Present only for non-root departments."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at"
+        ]
+      },
+      "Employee": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "department_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "position": {
+            "type": "string"
+          },
+          "hired_at": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Optional."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "department_id",
+          "full_name",
+          "position",
+          "created_at"
+        ]
+      },
+      "DepartmentNodeResponse": {
+        "type": "object",
+        "properties": {
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "employees": {
+            "type": "array",
+            "description": "Present only when `include_employees=true`. Sorted by `created_at`.",
+            "items": {
+              "$ref": "#/components/schemas/Employee"
+            }
+          },
+          "children": {
+            "type": "array",
+            "description": "Nested departments (may be empty). Depth is controlled by `depth` query param.",
+            "items": {
+              "$ref": "#/components/schemas/DepartmentNodeResponse"
+            }
+          }
+        },
+        "required": [
+          "department",
+          "children"
+        ]
+      }
+    }
+  }
+}
