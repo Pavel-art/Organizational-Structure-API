@@ -12,5 +12,5 @@ type Employee struct {
 	HiredAt   *time.Time `gorm:"type:date" json:"hired_at"`
 	CreatedAt time.Time  `json:"created_at"`
 
-	Department Department `gorm:"foreignKey:DepartmentID" json:"-"`
+	Department Department `gorm:"foreignKey:DepartmentID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"-"`
 }

@@ -8,7 +8,7 @@ type Department struct {
 	ParentID  *int      `gorm:"index" json:"parent_id"`
 	CreatedAt time.Time `json:"created_at"`
 
-	Parent    *Department  `gorm:"foreignKey:ParentID" json:"-"`
-	Children  []Department `gorm:"foreignKey:ParentID" json:"children,omitempty"`
-	Employees []Employee   `gorm:"foreignKey:DepartmentID" json:"employees,omitempty"`
+	Parent    *Department  `gorm:"foreignKey:ParentID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"-"`
+	Children  []Department `gorm:"foreignKey:ParentID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"children,omitempty"`
+	Employees []Employee   `gorm:"foreignKey:DepartmentID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"employees,omitempty"`
 }
