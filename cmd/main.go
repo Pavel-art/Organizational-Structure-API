@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -90,15 +90,15 @@ func main() {
 
 	go func() {
 		log.Info().Str("port", srvCfg.Port).Msg("http server started")
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatal().Err(err).Msg("http server failed")
 		}
 	}()
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-stop
-	log.Info().Str("signal", sig.String()).Msg("shutdown signal received")
+	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	<-sigCtx.Done()
+	log.Info().Msg("shutdown signal received")
 
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
