@@ -4,14 +4,16 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/Pavel-art/Organizational-Structure-API/configs"
 	handler2 "github.com/Pavel-art/Organizational-Structure-API/internal/api/handlers/department"
 	"github.com/Pavel-art/Organizational-Structure-API/internal/api/handlers/health"
-	httpapi "github.com/Pavel-art/Organizational-Structure-API/internal/api/router"
+	"github.com/Pavel-art/Organizational-Structure-API/internal/api/middleware"
 	"github.com/Pavel-art/Organizational-Structure-API/internal/api/swagger"
 	"github.com/Pavel-art/Organizational-Structure-API/internal/application/services/impl"
 	"github.com/Pavel-art/Organizational-Structure-API/internal/core/closer"
@@ -20,6 +22,7 @@ import (
 	"github.com/Pavel-art/Organizational-Structure-API/internal/persistence/migrate"
 	repoimpl "github.com/Pavel-art/Organizational-Structure-API/internal/persistence/repositories/impl"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -66,18 +69,33 @@ func main() {
 	deptHandler := handler2.NewDepartmentHandler(deptService, empService)
 	healthHandler := health.NewHealthHandler(sqlDB)
 
-	rateLimitCfg := httpapi.RouterConfig{
-		EnableCORS:      true,
-		EnableRateLimit: true,
-	}
+	mux := http.NewServeMux()
+	mux.Handle("/departments", deptHandler)
+	mux.Handle("/departments/", deptHandler)
+	mux.Handle("/healthz", healthHandler)
+	mux.Handle("/swagger/", swagger.SwaggerUIHandler())
+	mux.Handle("/openapi.json", swagger.OpenAPIHandler())
 
-	handler := httpapi.NewRouter(
-		deptHandler,
-		healthHandler,
-		swagger.SwaggerUIHandler(),
-		swagger.OpenAPIHandler(),
-		rateLimitCfg,
-	)
+	var handler http.Handler = mux
+	handler = middleware.RequestLog(handler)
+
+	// Same behavior as internal/api/router: enabled, env overrides defaults.
+	enableRateLimit := true
+	enableCORS := true
+
+	if enableRateLimit {
+		rl := middleware.DefaultRateLimitConfig()
+		if rl.RPS <= 0 {
+			rl.RPS = rate.Limit(getIntEnv("RATE_LIMIT_RPS", int(rl.RPS)))
+		}
+		if rl.Burst <= 0 {
+			rl.Burst = getIntEnv("RATE_LIMIT_BURST", rl.Burst)
+		}
+		handler = middleware.RateLimit(rl)(handler)
+	}
+	if enableCORS {
+		handler = middleware.CORS(middleware.DefaultCORSConfig())(handler)
+	}
 
 	server := &http.Server{
 		Addr:              ":" + srvCfg.Port,
@@ -115,4 +133,16 @@ func main() {
 	}
 
 	log.Info().Msg("graceful shutdown completed")
+}
+
+func getIntEnv(key string, def int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		return def
+	}
+	return i
 }

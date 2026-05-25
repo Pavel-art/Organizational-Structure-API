@@ -16,75 +16,55 @@ import (
 	"github.com/Pavel-art/Organizational-Structure-API/pkg/validator"
 )
 
-const (
-	pathDepartments = "/departments"
-)
-
 type Handler struct {
+	mux         *http.ServeMux
 	deptService services.DepartmentService
 	empService  services.EmployeeService
 }
 
 func NewDepartmentHandler(deptService services.DepartmentService, empService services.EmployeeService) *Handler {
-	return &Handler{deptService: deptService, empService: empService}
+	h := &Handler{
+		mux:         http.NewServeMux(),
+		deptService: deptService,
+		empService:  empService,
+	}
+	h.registerRoutes()
+	return h
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimSuffix(r.URL.Path, "/")
-	if path == pathDepartments {
-		if r.Method == http.MethodPost {
-			h.createDepartment(w, r)
-			return
-		}
-		response.WriteError(w, r, http.StatusMethodNotAllowed, apperrors.CodeMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	if !strings.HasPrefix(path, pathDepartments+"/") {
-		http.NotFound(w, r)
-		return
-	}
-
-	rest := strings.TrimPrefix(path, pathDepartments+"/")
-	parts := strings.Split(rest, "/")
-	if len(parts) == 0 || parts[0] == "" {
-		http.NotFound(w, r)
-		return
-	}
-
-	id, err := strconv.Atoi(parts[0])
-	if err != nil || id <= 0 {
-		response.WriteError(w, r, http.StatusBadRequest, apperrors.CodeValidation, "invalid department id")
-		return
-	}
-
-	if len(parts) == 2 && parts[1] == "employees" {
-		if r.Method == http.MethodPost {
-			h.createEmployee(w, r, id)
-			return
-		}
-		response.WriteError(w, r, http.StatusMethodNotAllowed, apperrors.CodeMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	if len(parts) != 1 {
-		http.NotFound(w, r)
-		return
-	}
-
-	switch r.Method {
-	case http.MethodGet:
-		h.getDepartment(w, r, id)
-	case http.MethodPatch:
-		h.updateDepartment(w, r, id)
-	case http.MethodDelete:
-		h.deleteDepartment(w, r, id)
-	default:
-		response.WriteError(w, r, http.StatusMethodNotAllowed, apperrors.CodeMethodNotAllowed, "method not allowed")
-	}
+	h.normalizePath(r)
+	h.mux.ServeHTTP(w, r)
 }
 
-func (h *Handler) createDepartment(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) registerRoutes() {
+	h.mux.HandleFunc("POST /departments", h.CreateDepartment)
+	h.mux.HandleFunc("POST /departments/", h.CreateDepartment)
+
+	h.mux.HandleFunc("GET /departments/{id}", h.GetDepartment)
+	h.mux.HandleFunc("GET /departments/{id}/", h.GetDepartment)
+
+	h.mux.HandleFunc("PATCH /departments/{id}", h.UpdateDepartment)
+	h.mux.HandleFunc("PATCH /departments/{id}/", h.UpdateDepartment)
+
+	h.mux.HandleFunc("DELETE /departments/{id}", h.DeleteDepartment)
+	h.mux.HandleFunc("DELETE /departments/{id}/", h.DeleteDepartment)
+
+	h.mux.HandleFunc("POST /departments/{id}/employees", h.CreateEmployee)
+	h.mux.HandleFunc("POST /departments/{id}/employees/", h.CreateEmployee)
+}
+
+func (h *Handler) normalizePath(r *http.Request) {
+	if r.URL == nil {
+		return
+	}
+	if r.URL.Path == "" || r.URL.Path == "/" {
+		return
+	}
+	r.URL.Path = strings.TrimSuffix(r.URL.Path, "/")
+}
+
+func (h *Handler) CreateDepartment(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateDepartmentRequest
 	if !decodeJSON(w, r, &req) {
 		return
@@ -104,7 +84,12 @@ func (h *Handler) createDepartment(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, http.StatusCreated, mapper.ToDepartmentDTO(dept))
 }
 
-func (h *Handler) createEmployee(w http.ResponseWriter, r *http.Request, deptID int) {
+func (h *Handler) CreateEmployee(w http.ResponseWriter, r *http.Request) {
+	deptID, ok := parsePositiveIntPathValue(w, r, "id", "invalid department id")
+	if !ok {
+		return
+	}
+
 	var req dto.CreateEmployeeRequest
 	if !decodeJSON(w, r, &req) {
 		return
@@ -139,7 +124,12 @@ func (h *Handler) createEmployee(w http.ResponseWriter, r *http.Request, deptID 
 	response.WriteJSON(w, http.StatusCreated, mapper.ToEmployeeDTO(*emp))
 }
 
-func (h *Handler) getDepartment(w http.ResponseWriter, r *http.Request, deptID int) {
+func (h *Handler) GetDepartment(w http.ResponseWriter, r *http.Request) {
+	deptID, ok := parsePositiveIntPathValue(w, r, "id", "invalid department id")
+	if !ok {
+		return
+	}
+
 	depth, ok := validator.ParseIntQuery(r, constants.QueryDepth, constants.DefaultDepth)
 	if !ok || depth < 1 || depth > constants.MaxDepth {
 		response.WriteError(w, r, http.StatusBadRequest, apperrors.CodeValidation, "invalid depth")
@@ -160,7 +150,12 @@ func (h *Handler) getDepartment(w http.ResponseWriter, r *http.Request, deptID i
 	response.WriteJSON(w, http.StatusOK, mapper.ToDepartmentNodeResponse(dept, includeEmployees))
 }
 
-func (h *Handler) updateDepartment(w http.ResponseWriter, r *http.Request, deptID int) {
+func (h *Handler) UpdateDepartment(w http.ResponseWriter, r *http.Request) {
+	deptID, ok := parsePositiveIntPathValue(w, r, "id", "invalid department id")
+	if !ok {
+		return
+	}
+
 	var req dto.UpdateDepartmentRequest
 	if !decodeJSON(w, r, &req) {
 		return
@@ -183,7 +178,12 @@ func (h *Handler) updateDepartment(w http.ResponseWriter, r *http.Request, deptI
 	response.WriteJSON(w, http.StatusOK, mapper.ToDepartmentDTO(dept))
 }
 
-func (h *Handler) deleteDepartment(w http.ResponseWriter, r *http.Request, deptID int) {
+func (h *Handler) DeleteDepartment(w http.ResponseWriter, r *http.Request) {
+	deptID, ok := parsePositiveIntPathValue(w, r, "id", "invalid department id")
+	if !ok {
+		return
+	}
+
 	mode := r.URL.Query().Get(constants.QueryMode)
 	if mode == "" {
 		mode = implDeleteModeCascade
@@ -225,4 +225,18 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 		return false
 	}
 	return true
+}
+
+func parsePositiveIntPathValue(w http.ResponseWriter, r *http.Request, key string, msg string) (int, bool) {
+	raw := r.PathValue(key)
+	if raw == "" {
+		response.WriteError(w, r, http.StatusBadRequest, apperrors.CodeValidation, msg)
+		return 0, false
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v <= 0 {
+		response.WriteError(w, r, http.StatusBadRequest, apperrors.CodeValidation, msg)
+		return 0, false
+	}
+	return v, true
 }
