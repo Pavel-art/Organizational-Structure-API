@@ -36,7 +36,7 @@ func (m mockEmpService) Create(ctx context.Context, departmentID int, fullName, 
 func TestCreateDepartmentValidation(t *testing.T) {
 	h := NewDepartmentHandler(mockDeptService{}, mockEmpService{})
 
-	req := httptest.NewRequest(http.MethodPost, "/departments/", bytes.NewBufferString(`{"name":"   "}`))
+	req := httptest.NewRequest(http.MethodPost, "/departments", bytes.NewBufferString(`{"name":"   "}`))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 

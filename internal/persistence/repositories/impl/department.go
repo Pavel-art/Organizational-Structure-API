@@ -33,7 +33,11 @@ func (r *DepartmentRepository) GetByID(ctx context.Context, id int) (*models.Dep
 }
 
 func (r *DepartmentRepository) Update(ctx context.Context, dept *models.Department) error {
-	return r.db.WithContext(ctx).Save(dept).Error
+	// Используем Updates вместо Save, чтобы не обновлять нулевые значения
+	return r.db.WithContext(ctx).
+		Model(&models.Department{}).
+		Where("id = ?", dept.ID).
+		Updates(dept).Error
 }
 
 func (r *DepartmentRepository) Delete(ctx context.Context, id int) error {
@@ -80,38 +84,71 @@ func (r *DepartmentRepository) GetTree(ctx context.Context, id int, depth int, i
 		depth = 0
 	}
 
-	q := r.db.WithContext(ctx).Model(&models.Department{}).Where("id = ?", id)
-
-	if includeEmployees {
-		q = q.Preload("Employees", func(db *gorm.DB) *gorm.DB {
-			return db.Order("created_at ASC")
-		})
-	}
-
-	if depth > 0 {
-		preloads := []string{"Children"}
-		for i := 1; i < depth; i++ {
-			preloads = append(preloads, preloads[i-1]+".Children")
-		}
-		for _, p := range preloads {
-			q = q.Preload(p, func(db *gorm.DB) *gorm.DB {
+	// Для глубины 0 возвращаем только корневой отдел
+	if depth == 0 {
+		q := r.db.WithContext(ctx).Model(&models.Department{}).Where("id = ?", id)
+		if includeEmployees {
+			q = q.Preload("Employees", func(db *gorm.DB) *gorm.DB {
 				return db.Order("created_at ASC")
 			})
-			if includeEmployees {
-				q = q.Preload(p+".Employees", func(db *gorm.DB) *gorm.DB {
-					return db.Order("created_at ASC")
-				})
-			}
 		}
+		var dept models.Department
+		err := q.First(&dept).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &dept, nil
 	}
 
+	// Получаем корневой отдел
 	var dept models.Department
-	err := q.First(&dept).Error
+	err := r.db.WithContext(ctx).First(&dept, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+
+	// Рекурсивно загружаем детей до указанной глубины
+	if err := r.loadChildren(ctx, &dept, depth, includeEmployees); err != nil {
+		return nil, err
+	}
+
 	return &dept, nil
+}
+
+// loadChildren рекурсивно загружает детей для отдела
+func (r *DepartmentRepository) loadChildren(ctx context.Context, dept *models.Department, remainingDepth int, includeEmployees bool) error {
+	if remainingDepth <= 0 {
+		return nil
+	}
+
+	// Загружаем прямых детей
+	var children []models.Department
+	query := r.db.WithContext(ctx).Where("parent_id = ?", dept.ID).Order("created_at ASC")
+
+	if includeEmployees {
+		query = query.Preload("Employees", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at ASC")
+		})
+	}
+
+	err := query.Find(&children).Error
+	if err != nil {
+		return err
+	}
+
+	// Рекурсивно загружаем детей для каждого ребенка
+	for i := range children {
+		if err := r.loadChildren(ctx, &children[i], remainingDepth-1, includeEmployees); err != nil {
+			return err
+		}
+	}
+
+	dept.Children = children
+	return nil
 }

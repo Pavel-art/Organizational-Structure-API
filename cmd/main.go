@@ -17,10 +17,10 @@ import (
 	"github.com/Pavel-art/Organizational-Structure-API/internal/api/swagger"
 	"github.com/Pavel-art/Organizational-Structure-API/internal/application/services/impl"
 	"github.com/Pavel-art/Organizational-Structure-API/internal/core/closer"
-	"github.com/Pavel-art/Organizational-Structure-API/internal/core/logger"
 	persistdb "github.com/Pavel-art/Organizational-Structure-API/internal/persistence/db"
 	"github.com/Pavel-art/Organizational-Structure-API/internal/persistence/migrate"
 	repoimpl "github.com/Pavel-art/Organizational-Structure-API/internal/persistence/repositories/impl"
+	"github.com/Pavel-art/Organizational-Structure-API/pkg/logger"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/time/rate"
 )

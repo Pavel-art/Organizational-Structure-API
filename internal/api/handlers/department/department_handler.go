@@ -39,19 +39,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) registerRoutes() {
 	h.mux.HandleFunc("POST /departments", h.CreateDepartment)
-	h.mux.HandleFunc("POST /departments/", h.CreateDepartment)
 
 	h.mux.HandleFunc("GET /departments/{id}", h.GetDepartment)
-	h.mux.HandleFunc("GET /departments/{id}/", h.GetDepartment)
 
 	h.mux.HandleFunc("PATCH /departments/{id}", h.UpdateDepartment)
-	h.mux.HandleFunc("PATCH /departments/{id}/", h.UpdateDepartment)
 
 	h.mux.HandleFunc("DELETE /departments/{id}", h.DeleteDepartment)
-	h.mux.HandleFunc("DELETE /departments/{id}/", h.DeleteDepartment)
 
 	h.mux.HandleFunc("POST /departments/{id}/employees", h.CreateEmployee)
-	h.mux.HandleFunc("POST /departments/{id}/employees/", h.CreateEmployee)
 }
 
 func (h *Handler) normalizePath(r *http.Request) {
